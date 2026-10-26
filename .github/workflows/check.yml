@@ -2,7 +2,8 @@ name: Refurbed-Check
 
 on:
   schedule:
-    - cron: "0 7,12,18 * * *" # 8, 13, 19 Uhr deutscher Winterzeit
+    - cron: "0 * * * *" # gründlicher Check, stündlich
+    - cron: "15,30,45 * * * *" # Schnell-Check dazwischen
   workflow_dispatch:
     inputs:
       test:
@@ -12,6 +13,9 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: refurbed-check
 
 jobs:
   check:
@@ -25,10 +29,10 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: python check.py ${{ inputs.test && '--test' || '' }}
+        run: python check.py ${{ github.event.schedule == '15,30,45 * * * *' && '--quick' || '' }} ${{ inputs.test && '--test' || '' }}
       - name: Gesehene Angebote speichern
         run: |
           git config user.name "refurbed-bot"
           git config user.email "refurbed-bot@users.noreply.github.com"
           git add seen.json
-          git diff --cached --quiet || (git commit -m "seen.json aktualisiert" && git push)
+          git diff --cached --quiet || (git commit -m "seen.json aktualisiert" && git pull --rebase && git push)

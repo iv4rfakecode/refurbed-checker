@@ -16,6 +16,7 @@ CONFIG = json.loads((HERE / "config.json").read_text())
 STATE_FILE = HERE / "seen.json"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
 MAX_PAGES_PER_PRODUCT = 60
+QUICK_PAGES_PER_PRODUCT = 4  # Schnell-Check: nur die vermutlich günstigsten Varianten
 
 
 def fetch(path):
@@ -78,7 +79,7 @@ def first_price(page):
     return float(m.group(1)) if m else 0.0
 
 
-def crawl(slug):
+def crawl(slug, max_pages):
     """Prüft die Varianten eines Modells, die vermutlich günstigsten zuerst."""
     start = fetch(f"/p/{slug}/")
     queue = options(start, slug, first_price(start))
@@ -87,7 +88,7 @@ def crawl(slug):
     if sel:
         queue[sel.group(1)] = [set(), 0.0]
     seen, offers = set(), []
-    while queue and len(seen) < MAX_PAGES_PER_PRODUCT:
+    while queue and len(seen) < max_pages:
         url = min(queue, key=lambda u: queue[u][1])
         labels, _ = queue.pop(url)
         variant = url.split("?")[0]
@@ -139,10 +140,11 @@ def send(text):
 def main():
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
     deals = []
+    max_pages = QUICK_PAGES_PER_PRODUCT if "--quick" in sys.argv else MAX_PAGES_PER_PRODUCT
     for slug in CONFIG["products"]:
         print("Prüfe", slug)
         try:
-            offers = crawl(slug)
+            offers = crawl(slug, max_pages)
         except Exception as e:
             print(f"  Fehler: {e}", file=sys.stderr)
             continue
